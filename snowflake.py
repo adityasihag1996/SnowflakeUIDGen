@@ -31,38 +31,38 @@ class SnowflakeGenerator:
         if self.machine_id > self.max_machine_id or self.machine_id < 0:
             raise ValueError(f"Machine ID must be between 0 and {self.max_machine_id}")
 
-    def _time_gen(self):
+    def _gen_current_time(self):
         """Get the current time in milliseconds."""
         return int(time.time() * 1000) - self.epoch
 
     def _next_millis(self, last_timestamp):
         """Wait for the next millisecond."""
-        timestamp = self._time_gen()
+        timestamp = self._gen_current_time()
         while timestamp <= last_timestamp:
-            timestamp = self._time_gen()
+            timestamp = self._gen_current_time()
         return timestamp
 
     def get_id(self):
         with self.lock:
-            timestamp = self._time_gen()
+            current_timestamp = self._gen_current_time()
 
-            if timestamp < self.last_timestamp:
-                raise Exception("Clock is moving backwards. Rejecting requests until {}.".format(self.last_timestamp))
+            if current_timestamp < self.prev_timestamp:
+                raise Exception("Clock is moving backwards. Rejecting requests until {}.".format(self.prev_timestamp))
 
-            if self.last_timestamp == timestamp:
+            if self.prev_timestamp == current_timestamp:
                 self.sequence = (self.sequence + 1)
 
                 # Sequence Exhausted
                 # wait till next millisecond OR Raise Exception
                 if self.sequence > self.max_sequence:
-                    # timestamp = self._next_millis(self.last_timestamp)
+                    # timestamp = self._next_millis(self.prev_timestamp)
                     raise Exception("Sequence overflow. Cannot generate ID.")
             else:
                 self.sequence = 0
 
-            self.last_timestamp = timestamp
+            self.prev_timestamp = current_timestamp
 
-            snowflake_id = (timestamp << self.timestamp_shift) | \
+            snowflake_id = (current_timestamp << self.timestamp_shift) | \
                            (self.data_center_id << self.data_center_id_shift) | \
                            (self.machine_id << self.machine_id_shift) | \
                            self.sequence
